@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   TrendingDown,
   CheckCircle2,
-  X
+  X,
+  History
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
@@ -209,6 +210,25 @@ export function Reports() {
       toast.error("Product dispatch report load nahi hua");
     } finally {
       setProdSalesLoading(false);
+    }
+  };
+
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyProductTitle, setHistoryProductTitle] = useState("");
+
+  const fetchProductHistory = async (productId: string, productCode: string, designNo: string) => {
+    setHistoryProductTitle(`${designNo} / ${productCode}`);
+    setHistoryModalOpen(true);
+    setHistoryLoading(true);
+    try {
+      const res = await api.get(`/report/product-sales-history/${productId}`);
+      setHistoryData(res.data.data || []);
+    } catch {
+      toast.error("History load failed");
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -873,6 +893,7 @@ export function Reports() {
                     <th className="text-center px-4 py-3 font-semibold whitespace-nowrap">Pieces Sold</th>
                     <th className="text-right px-4 py-3 font-semibold whitespace-nowrap">Avg Sale Price</th>
                     <th className="text-right px-4 py-3 font-semibold whitespace-nowrap">Total Revenue</th>
+                    <th className="text-center px-4 py-3 font-semibold whitespace-nowrap">History</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -899,6 +920,11 @@ export function Reports() {
                           <td className="px-4 py-2.5 text-center font-bold text-indigo-950 text-base">{p.totalQty}</td>
                           <td className="px-4 py-2.5 text-right text-gray-600">{formatCurrency(Math.round(p.avgPrice))}</td>
                           <td className="px-4 py-2.5 text-right font-semibold text-green-600">{formatCurrency(p.totalRevenue)}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <button onClick={() => fetchProductHistory(p._id, p.productCode, p.designNo)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View Customer Sales History">
+                              <History className="w-4 h-4 mx-auto" />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                       {/* Grand Total */}
@@ -911,6 +937,7 @@ export function Reports() {
                         <td className="px-4 py-3 text-right text-green-700 text-base">
                           {formatCurrency(productSales.reduce((sum, p) => sum + p.totalRevenue, 0))}
                         </td>
+                        <td className="px-4 py-3"></td>
                       </tr>
                     </>
                   )}
@@ -1089,6 +1116,59 @@ export function Reports() {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* History Modal */}
+      {historyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Customer Sales History</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{historyProductTitle}</p>
+              </div>
+              <button onClick={() => setHistoryModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              {historyLoading ? (
+                <div className="text-center py-12 text-gray-400">Loading history...</div>
+              ) : historyData.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">No sales history found for this product.</div>
+              ) : (
+                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Customer Name</th>
+                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Pieces Sold</th>
+                        <th className="text-right px-4 py-3 font-semibold text-gray-600">Total Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {historyData.map((h: any, idx: number) => (
+                        <tr key={h._id || idx} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-800">{h.customerName}</div>
+                            {h.customerNumber && <div className="text-xs text-gray-500 mt-0.5">{h.customerNumber}</div>}
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-indigo-600">{h.totalQty}</td>
+                          <td className="px-4 py-3 text-right font-medium text-green-600">{formatCurrency(h.totalRevenue)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-gray-50/50 border-t-2 border-gray-100 font-bold">
+                        <td className="px-4 py-3 text-right text-gray-600 uppercase text-xs">Total</td>
+                        <td className="px-4 py-3 text-center text-indigo-700">{historyData.reduce((sum: number, h: any) => sum + h.totalQty, 0)}</td>
+                        <td className="px-4 py-3 text-right text-green-700">{formatCurrency(historyData.reduce((sum: number, h: any) => sum + h.totalRevenue, 0))}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
